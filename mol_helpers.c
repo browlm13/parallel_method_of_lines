@@ -7,7 +7,14 @@
 enum booleans {
   TRUE = 1,
   FALSE = 0
-}
+};
+
+enum faces {
+  FACE_1 = 0,
+  FACE_2 = 1,
+  MIN_FACE = 0,
+  MAX_FACE = 1
+};
 
 enum axis_indices {
   X = 0,
@@ -24,13 +31,6 @@ enum feild_indices {
   W_INDEX = 3,
   MIN_FEILD = 0,
   MAX_FEILD = 3
-};
-
-enum faces {
-  FACE_1 = 0,
-  FACE_2 = 1,
-  MIN_FACE = 0,
-  MAX_FACE = 1
 };
 
 int set_C_dims( int n, & int [N_DIMS] C_dims, int exact ){
@@ -112,26 +112,42 @@ int set_C_dims( int n, & int [N_DIMS] C_dims, int exact ){
 }
 
 
-void set_comm_lattice_vars( & MPI_Comm C_comm, & int rank, & int [N_DIMS] C_coords, & int [N_DIMS][N_FACES] neighbor_ranks ){
-  // Note: local_dims are process specific
-  // Init:    rank,  C_coords,  neighbor_ranks
+void set_comm_lattice_vars( & MPI_Comm              C_comm,
+                            & int                   rank,
+                            & int [N_DIMS]          C_coords,
+                            & int [N_DIMS][N_FACES] neighbor_ranks ){
+  /*
+    Init:    rank,             ~    process rank
+             neighbor_ranks,   ~    neighboring process ranks (6 faces)
+             C_coords          ~    position in process communication lattice
+
+
+
+
+    Note: rank, C_coords and neighbor_ranks are process specific
+  */
 
   // set rank ~ process id / rank
-  MPI_Comm_rank( C_comm, & rank );
+  MPI_Comm_rank  ( C_comm, & rank );
 
   // set C_coords ~ process coordinates in communication lattice
   MPI_Cart_coords( C_comm, rank, N_DIMS, & C_coords );
 
   // set neighbor_ranks [axis] [face] ~ neighbor process ids / ranks
   int disp = 1;
-  MPI_Cart_shift( C_comm, X, disp, & neighbor_ranks[X][FACE_1], & neighbor_ranks[X][FACE_2] );
-  MPI_Cart_shift( C_comm, Y, disp, & neighbor_ranks[Y][FACE_1], & neighbor_ranks[Y][FACE_2] );
-  MPI_Cart_shift( C_comm, Z, disp, & neighbor_ranks[Z][FACE_1], & neighbor_ranks[Z][FACE_2] );
+  MPI_Cart_shift ( C_comm, X, disp, & neighbor_ranks[X][FACE_1], & neighbor_ranks[X][FACE_2] );
+  MPI_Cart_shift ( C_comm, Y, disp, & neighbor_ranks[Y][FACE_1], & neighbor_ranks[Y][FACE_2] );
+  MPI_Cart_shift ( C_comm, Z, disp, & neighbor_ranks[Z][FACE_1], & neighbor_ranks[Z][FACE_2] );
 
 }
 
-void set_local_dims( int [N_DIMS] global_dims, int [N_DIMS] C_dims, int [N_DIMS] C_coords, & int [N_DIMS] local_dims ){
-  // Note: local_dims are process specific
+void set_local_dims(  int [N_DIMS] global_dims,
+                      int [N_DIMS] C_dims,
+                      int [N_DIMS] C_coords,
+                    & int [N_DIMS] local_dims ){
+  /*
+      Note: local_dims are process specific
+  */
 
   // declarations outside if statments for readability
   int [N_DIMS] remainders;
@@ -149,7 +165,11 @@ void set_local_dims( int [N_DIMS] global_dims, int [N_DIMS] C_dims, int [N_DIMS]
   }
 }
 
-void set_local_memory_dims(  int [N_DIMS][N_FACES] neighbor_ranks, int [N_DIMS][N_FACES] boundry_padding, int [N_FEILDS][N_DIMS] feild_communications, int [N_DIMS] local_dims, & int [N_FEILDS][N_DIMS] local_memory_dims  ){
+void set_local_memory_dims(  int [N_DIMS][N_FACES]  neighbor_ranks,
+                             int [N_DIMS][N_FACES]  boundry_padding,
+                             int [N_FEILDS][N_DIMS] feild_communications,
+                             int [N_DIMS]           local_dims,
+                           & int [N_FEILDS][N_DIMS] local_memory_dims  ){
   /*
       Sets up memory indexing for process.
 
@@ -192,7 +212,11 @@ void set_local_memory_dims(  int [N_DIMS][N_FACES] neighbor_ranks, int [N_DIMS][
 
 */
 
-int [3] memory_to_local( int feild_index, & int [N_DIMS] process_coors, & int [N_DIMS] memory_coors, & int [N_FEILDS][N_DIMS] local_memory_dims, & int [N_DIMS] local_dims ){
+int [3] memory_to_local(  int feild_index,
+                        & int [N_DIMS]           process_coors,
+                        & int [N_DIMS]           memory_coors,
+                        & int [N_FEILDS][N_DIMS] local_memory_dims,
+                        & int [N_DIMS]           local_dims ){
   /*
       Converts local memory coordinates for specified feild into local coordinates.
 
@@ -201,7 +225,6 @@ int [3] memory_to_local( int feild_index, & int [N_DIMS] process_coors, & int [N
       local_memory_dims[X] - local_dims[X] = x_pad;
       local_memory_dims[Y] - local_dims[Y] = y_pad;
 
-      xm
   */
 
   int [3] local_coors = {
@@ -215,21 +238,45 @@ int [3] memory_to_local( int feild_index, & int [N_DIMS] process_coors, & int [N
   return local_coors;
 }
 
-int [3] local_to_global( & int [N_DIMS] process_coors, & int [N_DIMS] local_coors, & int [N_DIMS] local_dims ){
+int [3] local_to_global( & int [N_DIMS] process_coors,
+                         & int [N_DIMS] local_coors,
+                         & int [N_DIMS] local_dims ){
+  /*
+      xg = lnx*xc + xl,
+      yg = lny*yc + yl,
+      zg = lnz*zc + zl
+
+
+  */
 
   int [3] global_coors = {
-      (double)local_dims[X] * (double)process_coors[X] + (double)local_coors[X],    // xg = lnx*xc + xl
-      (double)local_dims[Y] * (double)process_coors[Y] + (double)local_coors[Y],    // yg = lny*yc + yl
-      (double)local_dims[Z] * (double)process_coors[Z] + (double)local_coors[Z]     // zg = lnz*zc + zl
+      (double)local_dims[X] * (double)process_coors[X] + (double)local_coors[X],
+      (double)local_dims[Y] * (double)process_coors[Y] + (double)local_coors[Y],
+      (double)local_dims[Z] * (double)process_coors[Z] + (double)local_coors[Z]
   };
 
   return global_coors;
 }
 
 
-//int                     is_ghost  ( int [N_DIMS] local_coors, int [3] process_coors, int [3] local_dims );
-//int [N_FEILDS][N_FACES] comm_faces( int [N_DIMS] local_coors, int [3] process_coors, int [3] local_dims),
-//                                    int [N_FEILDS][N_DIMS] feild_communications );
+int is_ghost  ( int [N_DIMS] local_coors,
+                int [N_DIMS] process_coors,
+                int [N_DIMS] local_dims ){
+    /*
+      return TRUE or FALSE regarding wheather or not global coordinates
+      are located outside internal mesh boundries
+    */
+}
+
+int [N_FEILDS][N_FACES] comm_faces( int [N_DIMS] local_coors,
+                                    int [3] process_coors,
+                                    int [3] local_dims,
+                                    int [N_FEILDS][N_DIMS] feild_communications ){
+    /*
+      returns array of booleans regarding which faces a given coordinate
+      communicates with
+    */
+}
 
 
 
