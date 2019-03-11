@@ -35,32 +35,32 @@ const int m = 30;    // [TODO]: feild dimensions as input parameter
 ////
 // Settings
 
-const int n_dims = 3;                                           // number of dimensions in topology
-const int n_feilds = 4;
-const int n_faces = 2;
+const int N_DIMS = 3;                                           // number of dimensions in topology
+const int N_FEILDS = 4;
+const int N_FACES = 2;
 
 int main( int argc, char** argv ) {
 
   ////
   // Global Mesh Dimensions (Does Not Correspond To Memory Allocated)
 
-  const int [n_dims] global_dims = {m-1, m-1, m-1};               // global mesh interior dimesions ( no walls, no ghosts ) -- "Not the actuall memory allocated"
+  const int [N_DIMS] global_dims = {m-1, m-1, m-1};               // global mesh interior dimesions ( no walls, no ghosts ) -- "Not the actuall memory allocated"
 
   ////
   // Boundry Conditions (Periodicity Of Feilds On Given Axes)                       [TODO]: Make flexible
-  // int [n_feilds][n_dims] feild_periodicty = {FALSE};           // Not periodic
+  // int [N_FEILDS][N_DIMS] feild_periodicty = {FALSE};           // Not periodic
 
   ////
   // Extra Memory Allocation For Boundry Conditions
 
-  int [n_feilds][n_faces] boundry_padding = {0};                  // velocity_feild_dims = {m-1, m-1, m-1};
+  int [N_FEILDS][N_FACES] boundry_padding = {0};                  // velocity_feild_dims = {m-1, m-1, m-1};
   boundry_padding[P_INDEX][FACE_1] = 1;                           // pressure_feild_dims = {m+1, m+1, m+1};
   boundry_padding[P_INDEX][FACE_2] = 1;
 
   ////
   // Feild Axes of Communications With Neighboring Faces
 
-  int [n_feilds][n_dims] feild_communications = {FALSE};          // feild axes of communication:
+  int [N_FEILDS][N_DIMS] feild_communications = {FALSE};          // feild axes of communication:
   feild_communications[P_INDEX][X] = TRUE;                        //         P on (x,
   feild_communications[P_INDEX][Y] = TRUE;                        //               y,
   feild_communications[P_INDEX][Z] = TRUE;                        //               z)
@@ -72,8 +72,8 @@ int main( int argc, char** argv ) {
   // Process Communication Lattice
 
   MPI_Comm  C_comm;                                               // process comm latice communicator
-  int       comm_dims     [n_dims];                               // number of ranks per dimension in process communication lattice
-  int       C_periodicity [n_dims] = {FALSE, FALSE, FALSE};       // periodicity of comm lattice axes
+  int       C_dims     [N_DIMS];                               // number of ranks per dimension in process communication lattice
+  int       C_periodicity [N_DIMS] = {FALSE, FALSE, FALSE};       // periodicity of comm lattice axes
   int       reorder                = FALSE;                       // allow reordering
 
   ////
@@ -87,38 +87,38 @@ int main( int argc, char** argv ) {
   // Init C_comm                                                  // C_comm ~ Process Communication Lattice MPI Communicator Handel
 
   int exact = TRUE;                                               // Don't allow unused processes : exact = TRUE
-  set_comm_dims  ( n_procs, comm_dims, exact );                   // set number of processes per axis in process comm lattice
-  MPI_Dims_create( n_procs, n_dims, comm_dims );                  // not positive what this is doing...
-  MPI_Cart_create( MPI_COMM_WORLD, n_dims, comm_dims,
+  set_C_dims  ( n_procs, C_dims, exact );                   // set number of processes per axis in process comm lattice
+  MPI_Dims_create( n_procs, N_DIMS, C_dims );                  // not positive what this is doing...
+  MPI_Cart_create( MPI_COMM_WORLD, N_DIMS, C_dims,
                    C_periodicity, reorder, & C_comm );            // Set up Processes Communication Lattice
 
   ////
   // Process Specific Data
 
-  int                    pid;                                     // Process Rank / ID
-  int [n_dims][n_faces]  neighbor_pids;                           // Neighboring Processes Ranks / ID's (2 per axis)
-  int [n_dims]           comm_coords;                             // Coordinates of Process in Process Communication Lattice
-  int [n_dims]           local_dims;                              // Number of Mesh Points Assigned to Process
-  int [n_feilds][n_dims] L_mem_dims;                              // Memory Allocation for Process
+  int                    rank;                                     // Process Rank / ID
+  int [N_DIMS][N_FACES]  neighbor_ranks;                           // Neighboring Processes Ranks / ID's (2 per axis)
+  int [N_DIMS]           C_coords;                             // Coordinates of Process in Process Communication Lattice
+  int [N_DIMS]           local_dims;                              // Number of Mesh Points Assigned to Process
+  int [N_FEILDS][N_DIMS] local_memory_dims;                       // Memory Allocation for Process
 
-  // Init:    pid,  comm_coords,  neighbor_pids
-  set_comm_lattice_vars( & MPI_Comm C_comm, & pid, & comm_coords, & neighbor_pids );
+  // Init:    rank,  C_coords,  neighbor_ranks
+  set_comm_lattice_vars( & MPI_Comm C_comm, & rank, & C_coords, & neighbor_ranks );
 
   // Init:    local dims
-  set_local_dims       ( global_dims, comm_dims, comm_coords, & local_dims );
+  set_local_dims       ( global_dims, C_dims, C_coords, & local_dims );
 
-  // Init:    L_mem_dims
-  set_L_mem_dims       ( neighbor_pids, boundry_padding, feild_communications,
-                         local_dims, & L_mem_dims );
+  // Init:    local_memory_dims
+  set_local_memory_dims       ( neighbor_ranks, boundry_padding, feild_communications,
+                                local_dims, & local_memory_dims );
 
   ////
   // Allocate memory for all 16 local feilds :
 
   //   P, U, V, W,   P_next, U_next, V_next, W_next,   P_g1, U_g1, V_g1, W_g1,   P_g2, U_g2, V_g2, W_g2
-  double [L_mem_dims[P_INDEX][X]][L_mem_dims[P_INDEX][Y]][L_mem_dims[P_INDEX][Z]] P, P_next, P_g1, P_g2;
-  double [L_mem_dims[U_INDEX][X]][L_mem_dims[U_INDEX][Y]][L_mem_dims[U_INDEX][Z]] U, U_next, U_g1, U_g2;
-  double [L_mem_dims[V_INDEX][X]][L_mem_dims[V_INDEX][Y]][L_mem_dims[V_INDEX][Z]] V, V_next, V_g1, V_g2;
-  double [L_mem_dims[W_INDEX][X]][L_mem_dims[W_INDEX][Y]][L_mem_dims[W_INDEX][Z]] W, W_next, W_g1, W_g2;
+  double [local_memory_dims[P_INDEX][X]][local_memory_dims[P_INDEX][Y]][local_memory_dims[P_INDEX][Z]] P, P_next, P_g1, P_g2;
+  double [local_memory_dims[U_INDEX][X]][local_memory_dims[U_INDEX][Y]][local_memory_dims[U_INDEX][Z]] U, U_next, U_g1, U_g2;
+  double [local_memory_dims[V_INDEX][X]][local_memory_dims[V_INDEX][Y]][local_memory_dims[V_INDEX][Z]] V, V_next, V_g1, V_g2;
+  double [local_memory_dims[W_INDEX][X]][local_memory_dims[W_INDEX][Y]][local_memory_dims[W_INDEX][Z]] W, W_next, W_g1, W_g2;
 
   // [TODO]: Fix comm wall mappings
   // [TODO]: To make more flexable and readable initalize all Feilds to true solutions in a single function call
