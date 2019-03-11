@@ -2,15 +2,12 @@
 #include <math.h>
 
 ////
-// macros
+// Enums
 
 enum booleans {
   TRUE = 1,
   FALSE = 0
 }
-
-////
-// Enums
 
 enum axis_indices {
   X = 0,
