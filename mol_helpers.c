@@ -4,8 +4,10 @@
 ////
 // macros
 
-#define TRUE 1
-#define FALSE 0
+enum booleans {
+  TRUE = 1,
+  FALSE = 0
+}
 
 ////
 // Enums
